@@ -142,7 +142,7 @@ class EntryConvolutionalBlock(nn.Module):
 
 
 class ConvolutionalProcessingBlock(nn.Module):
-    def __init__(self, input_shape, num_filters, kernel_size, padding, bias, dilation, residual_connections):
+    def __init__(self, input_shape, num_filters, kernel_size, padding, bias, dilation, residual_con):
         super(ConvolutionalProcessingBlock, self).__init__()
 
         self.num_filters = num_filters
@@ -151,7 +151,7 @@ class ConvolutionalProcessingBlock(nn.Module):
         self.padding = padding
         self.bias = bias
         self.dilation = dilation
-        self.residual_connections = residual_connections
+        self.residual_con = residual_con
 
         self.build_module()
 
@@ -172,7 +172,8 @@ class ConvolutionalProcessingBlock(nn.Module):
                                               padding=self.padding, stride=1)
 
         out = self.layer_dict['conv_1'].forward(out)
-        out += x if self.residual_connections else out
+        if self.residual_con:
+            out += x
         out = F.leaky_relu(out)
 
         print(out.shape)
@@ -184,7 +185,8 @@ class ConvolutionalProcessingBlock(nn.Module):
         out = F.leaky_relu(out)
 
         out = self.layer_dict['conv_1'].forward(out)
-        out += x if self.residual_connections else out
+        if self.residual_con:
+            out += x
         out = F.leaky_relu(out)
 
         return out
@@ -242,9 +244,8 @@ class ConvolutionalDimensionalityReductionBlock(nn.Module):
 
 class ConvolutionalNetwork(nn.Module):
     def __init__(self, input_shape, num_output_classes, num_filters,
-                 num_blocks_per_stage, num_stages, use_bias=False, processing_block_type=ConvolutionalProcessingBlock,
-                 dimensionality_reduction_block_type=ConvolutionalDimensionalityReductionBlock,
-                 residual_connections=False):
+                 num_blocks_per_stage, num_stages,res_con, use_bias=False, processing_block_type=ConvolutionalProcessingBlock,
+                 dimensionality_reduction_block_type=ConvolutionalDimensionalityReductionBlock):
         """
         Initializes a convolutional network module
         :param input_shape: The shape of the tensor to be passed into this network
@@ -268,7 +269,7 @@ class ConvolutionalNetwork(nn.Module):
         self.num_stages = num_stages
         self.processing_block_type = processing_block_type
         self.dimensionality_reduction_block_type = dimensionality_reduction_block_type
-        self.residual_connections = residual_connections
+        self.res_con = res_con
 
         # build the network
         self.build_module()
@@ -294,7 +295,7 @@ class ConvolutionalNetwork(nn.Module):
                                                                                          num_filters=self.num_filters,
                                                                                          bias=self.use_bias,
                                                                                          kernel_size=3, dilation=1,
-                                                                                         padding=1, residual_connections=self.residual_connections)
+                                                                                         padding=1, residual_con = self.res_con)
                 out = self.layer_dict['block_{}_{}'.format(i, j)].forward(out)
             self.layer_dict['reduction_block_{}'.format(i)] = self.dimensionality_reduction_block_type(
                 input_shape=out.shape,
@@ -344,9 +345,10 @@ class ConvolutionalNetwork(nn.Module):
 
         self.logit_linear_layer.reset_parameters()
 
+
 class ConvolutionalProcessingBlockBN(nn.Module):
-    def __init__(self, input_shape, num_filters, kernel_size, padding, bias, dilation, residual_connections):
-        super(ConvolutionalProcessingBlock, self).__init__()
+    def __init__(self, input_shape, num_filters, kernel_size, padding, bias, dilation, residual_con):
+        super(ConvolutionalProcessingBlockBN, self).__init__()
 
         self.num_filters = num_filters
         self.kernel_size = kernel_size
@@ -354,8 +356,7 @@ class ConvolutionalProcessingBlockBN(nn.Module):
         self.padding = padding
         self.bias = bias
         self.dilation = dilation
-        self.residual_connections = residual_connections
-
+        self.residual_con = residual_con
         self.build_module()
 
     def build_module(self):
@@ -366,18 +367,17 @@ class ConvolutionalProcessingBlockBN(nn.Module):
         self.layer_dict['conv_0'] = nn.Conv2d(in_channels=out.shape[1], out_channels=self.num_filters, bias=self.bias,
                                               kernel_size=self.kernel_size, dilation=self.dilation,
                                               padding=self.padding, stride=1)
-
         out = self.layer_dict['conv_0'].forward(out)
         self.layer_dict['bn_0'] = nn.BatchNorm2d(num_features=out.shape[1])
         out = F.leaky_relu(self.layer_dict['bn_0'].forward(out))
-        
+
         self.layer_dict['conv_1'] = nn.Conv2d(in_channels=out.shape[1], out_channels=self.num_filters, bias=self.bias,
                                               kernel_size=self.kernel_size, dilation=self.dilation,
                                               padding=self.padding, stride=1)
-
         out = self.layer_dict['conv_1'].forward(out)
         self.layer_dict['bn_1'] = nn.BatchNorm2d(num_features=out.shape[1])
-        out += x if self.residual_connections else out
+        if self.residual_con:
+            out += x
         out = F.leaky_relu(self.layer_dict['bn_1'].forward(out))
 
         print(out.shape)
@@ -391,15 +391,16 @@ class ConvolutionalProcessingBlockBN(nn.Module):
 
         out = self.layer_dict['conv_1'].forward(out)
         out = self.layer_dict['bn_1'].forward(out)
-        out += x if self.residual_connections else out
+        
+        if self.residual_con:
+            out += x
         out = F.leaky_relu(out)
 
         return out
 
-
 class ConvolutionalDimensionalityReductionBlockBN(nn.Module):
     def __init__(self, input_shape, num_filters, kernel_size, padding, bias, dilation, reduction_factor):
-        super(ConvolutionalDimensionalityReductionBlock, self).__init__()
+        super(ConvolutionalDimensionalityReductionBlockBN, self).__init__()
 
         self.num_filters = num_filters
         self.kernel_size = kernel_size

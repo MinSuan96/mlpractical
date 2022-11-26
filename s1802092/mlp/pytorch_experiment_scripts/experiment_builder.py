@@ -158,8 +158,12 @@ class ExperimentBuilder(nn.Module):
             if name[-6:] == "weight":
                 layers.append(name.replace("layer_dict.",""))
                 all_grads.append(params.grad.abs().mean())
+            else:
+                continue
+        
         ########################################
             
+        
         plt = self.plot_func_def(all_grads, layers)
         
         return plt
